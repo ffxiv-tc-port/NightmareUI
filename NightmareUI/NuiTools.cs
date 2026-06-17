@@ -37,7 +37,7 @@ public static class NuiTools
             for(var i = 0; i < buttons.Length; i++)
             {
                 var b = buttons[i];
-                var act = State.ActiveTab[id] == b.InternalName;
+                var act = State.ActiveTab.SafeSelect(id) == b.InternalName;
                 ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 0f);
                 if(act)
                 {
