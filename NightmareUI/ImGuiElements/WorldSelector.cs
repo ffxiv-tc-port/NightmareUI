@@ -39,6 +39,16 @@ public class WorldSelector
         ID = id;
     }
 
+    // 2026-08 補記:四個消費端(AutoRetainer/TextAdvance/Lifestream/Splatoon)現在都已經把
+    // ECommons pin 到 db0ceca7 以後——那個版本的 ExcelWorldHelper 已經在根因修好了台服世界
+    // (IsPublic()/Get() 直接放行 4028-4035),並新增了 AllRegions()/GetRegionDisplayName()
+    // 可以取代下面這整段本地的 TCRegionByte/TCOfficialWorldIds/GetRegionLabel 客製邏輯。
+    // 目前刻意維持現狀、不做這個重構:(1) 這裡的地區標籤是簡短代碼(JP/NA/EU/OC/TW),
+    // ECommons.GetRegionDisplayName() 回傳的是完整名稱(Japan/North-America/.../Taiwan),
+    // 換掉會改變四個外掛的世界選單顯示文字,不是純內部重構;(2) 現在是雙重防護,兩條路徑
+    // 邏輯等價、沒有壞,清理的風險(要同步改兩條分支 tw-worldselector-public-fix 與
+    // -splatoon、再逐一重新 pin 並建置驗證四個消費端)不成比例於純粹的程式碼精簡收益。
+    // 之後若有人已經在改這個檔案且要順手做這個整併,再一併處理即可。
     /// <summary>
     /// 台服(TC)資料中心「陸行鳥」(<c>WorldDCGroupType.RowId</c> 151)的 <c>Region</c> 欄位是 8,
     /// 不在 ECommons.ExcelServices.ExcelWorldHelper.Region 列舉(JP=1/NA=2/EU=3/OC=4)裡,
