@@ -39,6 +39,38 @@ public class WorldSelector
         ID = id;
     }
 
+    // ECommons 的 ExcelWorldHelper.IsPublic() 也放行台服世界(4028-4035),下面這段
+    // TCRegionByte/TCOfficialWorldIds/GetRegionLabel 與它是雙重防護。刻意不整併成它的
+    // AllRegions()/GetRegionDisplayName():那邊回的是完整名稱(Japan/North-America/.../Taiwan),
+    // 換掉會改變各消費端世界選單上的簡短代碼(JP/NA/EU/OC/TW)。
+    /// <summary>
+    /// 台服(TC)資料中心「陸行鳥」(<c>WorldDCGroupType.RowId</c> 151)的 <c>Region</c> 欄位是 8,
+    /// 不在 ECommons.ExcelServices.ExcelWorldHelper.Region 列舉(JP=1/NA=2/EU=3/OC=4)裡,
+    /// 國際服的資料不會出現這個值。這裡把它當成本檔內部多出來的第五個「地區」桶,
+    /// 讓下面既有的分組/展開/搜尋邏輯原封不動地把它當一般地區處理;國際服環境下
+    /// 這個桶底下不會有任何世界(見 <see cref="GetWorldsForDc"/>),會被既有的
+    /// <c>Sum() &gt; 0</c> 判斷整段跳過,零副作用。
+    /// </summary>
+    private const byte TCRegionByte = 8;
+    private static readonly ExcelWorldHelper.Region TCRegion = (ExcelWorldHelper.Region)TCRegionByte;
+
+    private static string GetRegionLabel(ExcelWorldHelper.Region region)
+        => region == TCRegion ? "TW" : region.ToString();
+
+    /// <summary>
+    /// 台服 8 個正式世界(伊弗利特/迦樓羅/利維坦/鳳凰/奧汀/巴哈姆特/拉姆/泰坦,RowId 4028–4035,DC 151)。
+    /// 它們在 <c>World.IsPublic</c> 全部是 False,只看那一欄世界選單在台服一個世界都列不出來,
+    /// 所以 <see cref="GetWorldsForDc"/> 另外放行這張表。國際服的世界 RowId 不會落在這個範圍、
+    /// DC 151 也只存在於台服環境,對國際服行為零副作用。
+    /// </summary>
+    private static readonly uint[] TCOfficialWorldIds = [4028, 4029, 4030, 4031, 4032, 4033, 4034, 4035];
+
+    private static IEnumerable<World> GetWorldsForDc(uint dcRowId)
+    {
+        return Svc.Data.GetExcelSheet<World>()!
+            .Where(w => w.DataCenter.RowId == dcRowId && (w.IsPublic() || TCOfficialWorldIds.Contains(w.RowId)));
+    }
+
     public void Draw(ref int worldConfig, ImGuiComboFlags flags = ImGuiComboFlags.HeightLarge)
     {
         ImGui.PushID(ID);
@@ -65,7 +97,7 @@ public class WorldSelector
         if(ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
         ImGui.InputTextWithHint($"##worldfilter", "Search...", ref WorldFilter, 50);
         Dictionary<ExcelWorldHelper.Region, Dictionary<uint, List<uint>>> regions = [];
-        foreach(var region in Enum.GetValues<ExcelWorldHelper.Region>())
+        foreach(var region in Enum.GetValues<ExcelWorldHelper.Region>().Append(TCRegion))
         {
             regions[region] = [];
             foreach(var dc in Svc.Data.GetExcelSheet<WorldDCGroupType>()!)
@@ -73,7 +105,7 @@ public class WorldSelector
                 if(dc.Region == (byte)region)
                 {
                     regions[region][dc.RowId] = [];
-                    foreach(var world in ExcelWorldHelper.GetPublicWorlds(dc.RowId))
+                    foreach(var world in GetWorldsForDc(dc.RowId))
                     {
                         if(WorldFilter == "" || world.Name.ToString().Contains(WorldFilter, StringComparison.OrdinalIgnoreCase) || world.RowId.ToString().Contains(WorldFilter, StringComparison.OrdinalIgnoreCase))
                         {
@@ -133,7 +165,7 @@ public class WorldSelector
                     }
                 }
                 if(DefaultAllOpen && ImGui.IsWindowAppearing()) ImGui.SetNextItemOpen(true);
-                if(ImGuiEx.TreeNode($"{region.Key}"))
+                if(ImGuiEx.TreeNode(GetRegionLabel(region.Key)))
                 {
                     foreach(var dc in region.Value)
                     {
